@@ -1,0 +1,25 @@
+# 本地开发用 PostgreSQL
+# 启动：docker compose up -d
+# 首次启动会自动执行 db/schema.sql 与 db/seed.sql（内置 mock 数据）
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: code-questions-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: code_questions
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d code_questions"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
