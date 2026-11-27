@@ -44,7 +44,7 @@ docker compose up -d --build
 
 停止并清理：`docker compose down`（保留数据加 `-v` 会删除数据卷，请谨慎）。
 
-> 说明：本机验证环境未安装 Docker，以上 compose 配置按标准写法提供，**未在本机实测**。分步开发方式（下面）已在本机实际跑通。
+> 说明：以上 compose 配置已由有 Docker 环境的同事实测通过——一条命令拉起 PostgreSQL + 后端（含前端产物），访问 `http://localhost:3000` 正常，配置无问题。分步开发方式（下面）也已在本机实际跑通。
 
 ### 方式二：分步开发（本地 Node）
 
