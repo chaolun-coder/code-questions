@@ -9,16 +9,21 @@
 import type { Sql } from '../db/client.js';
 import { AppError } from '../domain/errors.js';
 import type { Employee } from '../domain/types.js';
+import { requireText, toLikePattern } from '../domain/validation.js';
 import * as employeeRepo from '../repositories/employeeRepository.js';
 import * as tagRepo from '../repositories/tagRepository.js';
 
-/** 查询人员列表，可按标签筛选 */
-export async function list(sql: Sql, tagId?: string): Promise<Employee[]> {
+/** 查询人员列表；标签筛选与姓名/岗位模糊搜索可组合使用 */
+export async function list(sql: Sql, tagId?: string, search?: string): Promise<Employee[]> {
   const filter = tagId?.trim();
   if (filter !== undefined && filter === '') {
     throw new AppError('tagId 不能为空字符串');
   }
-  return employeeRepo.listEmployees(sql, filter);
+  const keyword = search?.trim();
+  if (keyword !== undefined && keyword.length > 100) {
+    throw new AppError('搜索关键词长度不能超过 100 个字符');
+  }
+  return employeeRepo.listEmployees(sql, filter, keyword ? toLikePattern(keyword) : undefined);
 }
 
 /** 查询单个人员 */
@@ -43,20 +48,29 @@ export async function changeManager(
   }
   const newManagerId = managerId === null ? null : requireText(managerId, 'managerId');
 
-  await get(sql, id); // 校验人员存在
+  // 事务内先锁定相关行再检查，避免两个并发请求同时通过环检测后互相成环。
+  // 按 id 排序加锁，保证并发事务的加锁顺序一致，避免死锁。
+  return sql.begin(async (tx) => {
+    const lockedIds = newManagerId === null ? [id] : [id, newManagerId].sort();
+    await employeeRepo.lockEmployeesForUpdate(tx, lockedIds);
 
-  if (newManagerId !== null) {
-    await get(sql, newManagerId); // 校验上级存在
-    const hasCycle = await employeeRepo.wouldCreateCycle(sql, id, newManagerId);
-    if (hasCycle) {
-      throw new AppError('不能将上级设为其本人或其下级，会形成循环汇报关系');
+    const employee = await employeeRepo.findEmployee(tx, id);
+    if (!employee) throw new AppError('人员不存在', 404);
+
+    if (newManagerId !== null) {
+      const manager = await employeeRepo.findEmployee(tx, newManagerId);
+      if (!manager) throw new AppError('上级不存在', 404);
+      const hasCycle = await employeeRepo.wouldCreateCycle(tx, id, newManagerId);
+      if (hasCycle) {
+        throw new AppError('不能将上级设为其本人或其下级，会形成循环汇报关系');
+      }
     }
-    await employeeRepo.updateManager(sql, id, newManagerId);
-  } else {
-    await employeeRepo.updateManager(sql, id, null);
-  }
 
-  return get(sql, id);
+    await employeeRepo.updateManager(tx, id, newManagerId);
+    const updated = await employeeRepo.findEmployee(tx, id);
+    if (!updated) throw new AppError('人员不存在', 404); // 理论上不会发生，仅用于类型收窄
+    return updated;
+  });
 }
 
 /** 给人员绑定标签 */
@@ -87,14 +101,3 @@ export async function unassignTag(
   return get(sql, id);
 }
 
-/** 校验非空文本字段 */
-function requireText(value: unknown, field: string, max = 100): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new AppError(`${field} 不能为空`);
-  }
-  const text = value.trim();
-  if (text.length > max) {
-    throw new AppError(`${field} 长度不能超过 ${max} 个字符`);
-  }
-  return text;
-}

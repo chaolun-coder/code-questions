@@ -4,6 +4,7 @@
 import { Hono } from 'hono';
 import type { Sql } from '../db/client.js';
 import * as tagService from '../services/tagService.js';
+import { readJsonObject } from './body.js';
 
 export function createTagRoutes(sql: Sql): Hono {
   const routes = new Hono();
@@ -15,13 +16,13 @@ export function createTagRoutes(sql: Sql): Hono {
 
   /** 新建标签：POST /api/tags  body: { name: string } */
   routes.post('/', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { name?: unknown };
+    const body = await readJsonObject(c);
     return c.json({ data: await tagService.create(sql, body.name) }, 201);
   });
 
   /** 重命名标签：PATCH /api/tags/:id  body: { name: string } */
   routes.patch('/:id', async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as { name?: unknown };
+    const body = await readJsonObject(c);
     return c.json({ data: await tagService.rename(sql, c.req.param('id'), body.name) });
   });
 

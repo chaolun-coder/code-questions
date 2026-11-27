@@ -8,6 +8,11 @@ export interface Tag {
   name: string;
 }
 
+/** 标签池中的一项，附带被多少人员使用（标签管理列表用） */
+export interface TagWithUsage extends Tag {
+  usageCount: number;
+}
+
 /** 人员（含汇报关系与标签，用于列表展示） */
 export interface Employee {
   id: string;

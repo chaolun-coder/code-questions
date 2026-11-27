@@ -6,6 +6,8 @@
  */
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { createDb, DEFAULT_DATABASE_URL } from './db/client.js';
 
@@ -14,11 +16,14 @@ const sql = createDb(process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL);
 
 const app = createApp(sql);
 
-// 托管前端构建产物（若存在）；开发模式下前端走 vite dev server + 代理
+// 托管前端构建产物（若存在）；开发模式下前端走 vite dev server + 代理。
+// 路径相对本文件解析，避免依赖启动时的 cwd。
+const distRoot =
+  process.env.WEB_DIST ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
 app.use(
   '/*',
   serveStatic({
-    root: process.env.WEB_DIST ?? '../web/dist',
+    root: distRoot,
     rewriteRequestPath: (path) => (path === '/' ? '/index.html' : path),
   }),
 );

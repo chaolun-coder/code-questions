@@ -16,3 +16,6 @@ export function createDb(databaseUrl: string): Sql {
 }
 
 export type Sql = postgres.Sql;
+
+/** 仓库层可接受普通连接或事务连接，便于把「检查 + 更新」放进同一事务 */
+export type Queryable = postgres.Sql | postgres.TransactionSql;

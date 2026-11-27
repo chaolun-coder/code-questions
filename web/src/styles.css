@@ -254,3 +254,46 @@ input[type='text']:focus {
   padding: 3px 6px;
   color: var(--color-muted);
 }
+
+/* 搜索框 */
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.search-box input[type='search'] {
+  min-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--color-text);
+}
+
+.search-box input[type='search']:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+/* 标签使用人数 */
+.tag-usage {
+  min-width: 96px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.tag-usage.in-use {
+  color: #b45309;
+}
+
+/* 操作进行中的禁用态 */
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

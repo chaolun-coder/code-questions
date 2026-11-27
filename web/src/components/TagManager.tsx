@@ -1,34 +1,37 @@
 /**
  * 标签管理面板：全局标签池的新建 / 重命名 / 删除。
+ * 列表展示每个标签的使用人数，删除已被使用的标签由后端强校验拒绝。
  */
 import { useState } from 'react';
-import type { Tag } from '../types';
+import type { TagWithUsage } from '../types';
 
 interface TagManagerProps {
-  tags: Tag[];
-  onCreate: (name: string) => Promise<unknown>;
-  onRename: (tagId: string, name: string) => Promise<unknown>;
-  onDelete: (tagId: string) => Promise<unknown>;
+  tags: TagWithUsage[];
+  busy: boolean;
+  /** 返回是否成功，失败时表单保持原样 */
+  onCreate: (name: string) => Promise<boolean>;
+  onRename: (tagId: string, name: string) => Promise<boolean>;
+  onDelete: (tagId: string) => Promise<boolean>;
 }
 
-export function TagManager({ tags, onCreate, onRename, onDelete }: TagManagerProps) {
+export function TagManager({ tags, busy, onCreate, onRename, onDelete }: TagManagerProps) {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
 
   const handleCreate = async () => {
     const name = newName.trim();
-    if (!name) return;
-    await onCreate(name);
-    setNewName('');
+    if (!name || busy) return;
+    if (await onCreate(name)) setNewName('');
   };
 
   const handleRename = async (tagId: string) => {
     const name = editingName.trim();
-    if (!name) return;
-    await onRename(tagId, name);
-    setEditingId(null);
-    setEditingName('');
+    if (!name || busy) return;
+    if (await onRename(tagId, name)) {
+      setEditingId(null);
+      setEditingName('');
+    }
   };
 
   return (
@@ -41,19 +44,20 @@ export function TagManager({ tags, onCreate, onRename, onDelete }: TagManagerPro
           placeholder="新标签名称"
           value={newName}
           maxLength={50}
+          disabled={busy}
           onChange={(event) => setNewName(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') void handleCreate();
           }}
         />
-        <button className="btn primary" onClick={() => void handleCreate()}>
+        <button className="btn primary" disabled={busy} onClick={() => void handleCreate()}>
           新建标签
         </button>
       </div>
 
       <ul className="tag-manager-list">
         {tags.map((tag) => (
-          <li key={tag.id}>
+          <li key={tag.id} data-tag-id={tag.id}>
             {editingId === tag.id ? (
               <>
                 <input
@@ -61,24 +65,29 @@ export function TagManager({ tags, onCreate, onRename, onDelete }: TagManagerPro
                   value={editingName}
                   maxLength={50}
                   autoFocus
+                  disabled={busy}
                   onChange={(event) => setEditingName(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') void handleRename(tag.id);
                     if (event.key === 'Escape') setEditingId(null);
                   }}
                 />
-                <button className="btn small" onClick={() => void handleRename(tag.id)}>
+                <button className="btn small" disabled={busy} onClick={() => void handleRename(tag.id)}>
                   保存
                 </button>
-                <button className="btn small" onClick={() => setEditingId(null)}>
+                <button className="btn small" disabled={busy} onClick={() => setEditingId(null)}>
                   取消
                 </button>
               </>
             ) : (
               <>
                 <span className="tag-name">{tag.name}</span>
+                <span className={`tag-usage${tag.usageCount > 0 ? ' in-use' : ''}`}>
+                  已被 {tag.usageCount} 人使用
+                </span>
                 <button
                   className="btn small"
+                  disabled={busy}
                   onClick={() => {
                     setEditingId(tag.id);
                     setEditingName(tag.name);
@@ -88,8 +97,16 @@ export function TagManager({ tags, onCreate, onRename, onDelete }: TagManagerPro
                 </button>
                 <button
                   className="btn small danger"
+                  disabled={busy}
+                  title={
+                    tag.usageCount > 0
+                      ? `该标签已被 ${tag.usageCount} 人使用，删除会被拒绝`
+                      : '删除该标签'
+                  }
                   onClick={() => {
-                    if (window.confirm(`确定删除标签「${tag.name}」？所有人员的该标签绑定会一并移除。`)) {
+                    const extra =
+                      tag.usageCount > 0 ? `该标签已被 ${tag.usageCount} 人使用，删除将被拒绝。` : '';
+                    if (window.confirm(`确定删除标签「${tag.name}」？${extra}`)) {
                       void onDelete(tag.id);
                     }
                   }}
