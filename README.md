@@ -177,10 +177,12 @@ interface TagWithUsage { id: string; name: string; usageCount: number; }
 
 | 运行时 | 状态 |
 |---|---|
-| Node.js 22 | **已实际验证**：类型检查、自动化测试、本地启动与页面操作均通过 |
-| Deno | **未验证**（本机未安装），代码按 Web Standard API 编写，但不宣称已支持 |
-| Bun | **未验证**（本机未安装） |
+| Node.js 22 | **已实际验证**：类型检查、12 项集成测试、本地启动与页面操作均通过 |
+| Deno 2.9 | **已实际验证**：`deno run -A --unstable-sloppy-imports scripts/runtime-entry.ts` 启动成功，`GET /api/health`、`GET /api/tags`（含 `usageCount`）、`GET /api/employees?search=...` 均返回正确结果 |
+| Bun 1.4 | **已实际验证**：`bun scripts/runtime-entry.ts` 启动成功，健康检查与标签/人员业务接口返回正确结果 |
 | Cloudflare Workers | **未验证**（无 Hyperdrive 环境）；`worker.ts` 仅提供入口示例，接入前请按平台文档验证 |
+
+说明：Deno / Bun 使用同一份业务代码（`src/app.ts`、`src/db/client.ts` 等），仅启动入口不同（`scripts/runtime-entry.ts` 按运行时选用 `Deno.serve` / `Bun.serve`）。验证时数据库为 PGlite over TCP（PostgreSQL  wire protocol），与生产 PostgreSQL 协议兼容；该嵌入式库同一时刻只接受一个连接池，因此两个运行时需分别单独启动验证，不能同时连接。
 
 ## 交付存档
 
@@ -192,4 +194,18 @@ interface TagWithUsage { id: string; name: string; usageCount: number; }
 cd web && npm run build
 cd ../server && npx tsx scripts/preview-server.ts   # 终端 A：单端口 3000
 cd ../server && node scripts/capture.mjs             # 终端 B：生成截图
+```
+
+跨运行时验证方式（需先启动 PGlite，两个运行时分开跑，不要同时连库）：
+
+```bash
+cd server
+npx tsx scripts/preview-server.ts   # 终端 A：数据库监听 55432
+# 终端 B（Deno，端口 3101）：
+PORT=3101 DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/postgres \
+  deno run -A --unstable-sloppy-imports scripts/runtime-entry.ts
+# 或终端 B（Bun，端口 3102）：
+PORT=3102 DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/postgres \
+  bun scripts/runtime-entry.ts
+curl http://localhost:3101/api/health   # 或 3102
 ```
